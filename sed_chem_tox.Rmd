@@ -29,10 +29,11 @@ locs <- dat %>%
   select(station, lon, lat)
 evvr <- dat %>% 
   select(station, toc, tn, fine, amph_surv, embr_surv)
-
+mets <- dat %>% 
+  select(-depth, -toc, -tn, -fine, -amph_surv, -embr_surv, -lat, -lon)
 ```
 
-The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Five measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), and embryonic survival (`embr_surv`).  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
+The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Twenty-eight measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), embryonic survival (`embr_surv`), and twenty-three metals.  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
 
 This plot shows relationships among raw variables - outliers are present and variables occur at different scales.
 ```{r pairplot, fig.height = 7, fig.width = 7}
@@ -116,6 +117,19 @@ p1 <- ggord(ppp, grp_in = as.character(grps), vec_ext = 3, alpha = 0.8, size = 2
 p1
 
 dimdesc(ppp, axes = c(1:2))
+```
+
+PCA of metals:
+```{r, fig.height = 5, fig.width = 5}
+pca_mets <- mets[, -1] %>% 
+  mutate_if(is.numeric, funs(ifelse(is.na(.), mean(., na.rm = T), .))) %>% 
+  decostand(method = 'standardize')
+
+ppp <- PCA(pca_mets, scale.unit = F, graph = F)
+
+p1 <- ggord(ppp, vec_ext = 10, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) +
+  mythm
+p1
 ```
 
 Finally, this map shows the site locations that are color-coded by the groupings from the dendrogram.  It can be used to evaluate spatial differences in the groupings.  
