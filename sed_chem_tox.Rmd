@@ -28,7 +28,7 @@ data(dat)
 locs <- dat %>% 
   select(station, lon, lat)
 evvr <- dat %>% 
-  select(-lon, -lat)
+  select(station, toc, tn, fine, amph_surv, embr_surv)
 
 ```
 
@@ -124,6 +124,7 @@ prstr <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 
 toplo <- dat_frm %>% 
   rownames_to_column('station') %>% 
+  mutate(station = as.numeric(station)) %>% 
   left_join(locs, by = 'station') %>% 
   mutate(Groups = grps) %>% 
   filter(!is.na(lon)) %>% 
