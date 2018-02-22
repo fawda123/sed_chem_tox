@@ -28,10 +28,10 @@ data(dat)
 locs <- dat %>% 
   select(station, lon, lat)
 evvr <- dat %>% 
-  select(-toc, -tn, -fine, -depth, -lat, -lon)
+  select(-toc, -fine, -tn, -depth, -lat, -lon)
 ```
 
-The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Twenty-eight measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), embryonic survival (`embr_surv`), and twenty-three metals.  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
+The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Twenty-eight measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), embryonic survival (`embr_surv`), and twenty-three metals.  Earlier analyses indicated that `tn`, `fine`, and `toc` were not related to survivability and these measurements were not evaluated further.  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
 
 This plot shows relationships among raw variables - outliers are present and variables occur at different scales.
 ```{r pairplot, fig.height = 9, fig.width = 9, eval = T}
@@ -49,10 +49,10 @@ dat_frm <- evvr %>%
   filter(Sb < 1.3) %>% 
   filter(Ag < 2) %>% 
   mutate(
-    embr_surv = ifelse(is.na(embr_surv), mean(embr_surv, na.rm = TRUE), embr_surv), 
-    Al = ifelse(is.na(Al), mean(Al, na.rm = TRUE), Al),
-    Sb = ifelse(is.na(Sb), mean(Sb, na.rm = TRUE), Sb),
-    As = ifelse(is.na(As), mean(As, na.rm = TRUE), As)
+    embr_surv = ifelse(is.na(embr_surv), median(embr_surv, na.rm = TRUE), embr_surv), 
+    Al = ifelse(is.na(Al), median(Al, na.rm = TRUE), Al),
+    Sb = ifelse(is.na(Sb), median(Sb, na.rm = TRUE), Sb),
+    As = ifelse(is.na(As), median(As, na.rm = TRUE), As)
   ) %>%
   column_to_rownames('station') %>%
   decostand(method = 'standardize')
@@ -60,8 +60,9 @@ dat_frm <- evvr %>%
 pairs(dat_frm, gap = 0, cex = 0.5, col = 'grey')
 ```
 
-This dendrogram shows clustering of sites based on dissimilarity matrix of Euclidean distances for the measured variables.  Sites closer to each other at the terminal branches are more similar.  The tree was cut to identify site groupings within which relative values of the measured variables were similar. The site groupings from the dendrogram were overlayed with the pairs plot above to identify which variables were driving group patterns.  
+The `kmeans` algorithm was used to assign sites to similar groups.  Group assignment using this algorithm is based on an iterative process where sites are assigned to minimized the within-group averages of the environmental variables.  The number of groups was chosen to maximize the separation in multivariate space (see the PCA biplot below) and based on spatial groupings of the data (see the map below).  The pairs plot below colors the sites by these groupings. 
 ```{r dendro, fig.width = 9, fig.height = 9, eval = T}
+set.seed(1234)
 ngrps <- 4
 grps <- kmeans(dat_frm, centers = ngrps, nstart = 10, iter.max = 30) %>% 
   .$cluster
@@ -80,7 +81,7 @@ colprs <- left_join(
 pairs(dat_frm, gap = 0, cex = 0.5, col = as.character(colprs$cols))
 ```
 
-
+The boxplots show the individual distributions of the environmental variables by the groups.
 ```{r, fig.height = 9, fig.width = 9, eval = T}
 toplo <- dat_frm %>% 
   mutate(grps = grps) %>% 
@@ -97,14 +98,15 @@ mythm <- theme_bw(base_family = 'serif') +
 colord <- unique(toplo[, c('grps', 'cols')])
 
 ggplot(toplo, aes(x = grps, y = val)) + 
-  geom_jitter(colour = toplo$cols, alpha = 0.5, width = 0.1) + 
+  geom_boxplot(outlier.size = -1) + 
+  geom_jitter(colour = toplo$cols, alpha = 0.3, width = 0.15) + 
   facet_wrap(~var, ncol = 5) + 
   mythm + 
   scale_y_continuous('Standardized measurements')
   
 ```
 
-The site groupings from the dendrogram and variance among the measured variables were also evaluated using principal components analysis.  This ordination plot is similar to the dendrogram in that sites with similar characters are closer to each other in multivariate space.  In addition, the measured variables that are related to site groupings are also plotted as two-dimensional vectors.  The point cloud groupings in the plot were identified from the dendrogram cut above. The table shows significant correlations between the measured variables and dimensions of the PCA.
+The site groupings from the kmeans clusters and variance among the measured variables were also evaluated using principal components analysis.  The ordination plot shows sites with similar characteristics closer to each other in multivariate space.  In addition, the measured variables that are related to site groupings are also plotted as two-dimensional vectors.  The point cloud groupings in the plot were identified from the kmeans clustering. The table shows significant correlations between the measured variables and dimensions of the PCA.
 ```{r ordiplot, fig.height = 7, fig.width = 7, eval = T}
 
 ppp <- PCA(dat_frm, scale.unit = F, graph = F)
@@ -120,10 +122,16 @@ p1 <- ggord(ppp, grp_in = as.character(grps), vec_ext = 9, alpha = 0.8, size = 2
   mythm
 p1
 
-dimdesc(ppp, axes = c(1:2))
+p2 <- ggord(ppp, grp_in = as.character(grps), axes = c('2', '3'), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
+  mythm
+p2
+
+p3 <- ggord(ppp, grp_in = as.character(grps), axes = c('1', '3'), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
+  mythm
+p3
 ```
 
-Finally, this map shows the site locations that are color-coded by the groupings from the dendrogram.  It can be used to evaluate spatial differences in the groupings.  
+Finally, this map shows the site locations that are color-coded by the clusters.  It can be used to evaluate spatial differences in the groupings.  
 ```{r, eval = T}
 prstr <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
 
@@ -140,15 +148,19 @@ mapview(toplo, zcol = 'Groups')
 
 Conclusions: 
 
-* Chemistry variables were all positively correlated: high organic carbon was associated with high nitrogen, high nitrogen was associated wtih high percent fines, etc. 
-* Splitting the dendrogram into four groups creates relatively homogenous site groupings.  Most of the sites were in group 2, which is not strongly driven by any of the measured variables.  By contrast, groups 1, 4, and 5 are more distinct and can be explaind by the measured variables.
-* Group 1 sites had low measurements for sediment chemistry.  It was not related to any of the survivorship measurements.
-* Group 4 had the high embryonic survival and lowest amphipod survival.  This was not strongly linked to chemistry.
-* Group 5 was strongly related to high amphipod survival and low embryonic survival. This was not strongly linked to chemistry.
-
-The overall question needs to be identified. Below are some thoughts for consideration depending on the question.
-
-* What sediment characteristics influence toxicity?  None of the sediment chemistry variables were related to survivorship, addtiional data will be needed to answer this question.  
-* Is there redundancy in data collection efforts?  Chemistry measurements were correlated, so it may not be necessary to measure all of these variables.   
-* Can the sampling sites be reduced?  It depends on the scale of interest - within bays or Bight wide.  Either way, more data are needed.
-
+* The toxicity measurements show a clear gradient from high to low across the sites.
+* The sites vary in which toxicity measurements are highest.  
+* The four groupings identified with kmeans clustering can be described as:
+     * green: low for all toxicity measurements, 
+     * blue: intermediate or not explained by any of the variables
+     * yellow: high in toxicity group 1
+     * purple: high in toxicity group 2
+* Amphipod and embryonic survivability were not strongly associated with any particular group, although some associations were observed. In particular:
+     * Embryonic survivability was somewhat lower in the yellow group (high in toxicity group 1)
+     * Amphipod survivability was somewhat higher in the green group (low for all), somewhat lower in the purple group (high in toxicity group 2)
+* Spatial patterns were clear among the groupings:
+     * The yellow group (high in toxicitiy group 1) was most common in San Diego Bay
+     * The purple group (high in toxicity 2) was most common in the port of LA
+* To do:
+     * Which toxicity variables are driving the group differences
+     * Which toxicity variables are most strongly associated with survivorship
