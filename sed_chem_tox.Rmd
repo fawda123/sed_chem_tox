@@ -60,7 +60,7 @@ dat_frm <- evvr %>%
 pairs(dat_frm, gap = 0, cex = 0.5, col = 'grey')
 ```
 
-The `kmeans` algorithm was used to assign sites to similar groups.  Group assignment using this algorithm is based on an iterative process where sites are assigned to minimized the within-group averages of the environmental variables.  The number of groups was chosen to maximize the separation in multivariate space (see the PCA biplot below) and based on spatial groupings of the data (see the map below).  The pairs plot below colors the sites by these groupings. 
+The `kmeans` algorithm was used to assign sites to similar groups.  Group assignment using this algorithm is based on an iterative process where sites are assigned to minimize the within-group averages of the environmental variables.  The number of groups was chosen to maximize the separation in multivariate space (see the PCA biplot below) and based on spatial groupings of the data (see the map below).  The pairs plot below colors the sites by these groupings. 
 ```{r dendro, fig.width = 9, fig.height = 9, eval = T}
 set.seed(1234)
 ngrps <- 4
@@ -106,7 +106,7 @@ ggplot(toplo, aes(x = grps, y = val)) +
   
 ```
 
-The site groupings from the kmeans clusters and variance among the measured variables were also evaluated using principal components analysis.  The ordination plot shows sites with similar characteristics closer to each other in multivariate space.  In addition, the measured variables that are related to site groupings are also plotted as two-dimensional vectors.  The point cloud groupings in the plot were identified from the kmeans clustering. The table shows significant correlations between the measured variables and dimensions of the PCA.
+The site groupings from the kmeans clusters and variance among the measured variables were also evaluated using principal components analysis.  The ordination plot shows sites with similar characteristics closer to each other in multivariate space.  In addition, the measured variables that are related to site groupings are also plotted as two-dimensional vectors.  The point cloud groupings in the plot were identified from the kmeans clustering. Axis one explains a gradient in toxicity from low to high, axis two shows which groups of toxicity variables are dominant when measurements are high (separating the 'high' groups 1 and 4), and axis 3 somewhat shows which variables were not important for distinguishing between groups 1 and 4. 
 ```{r ordiplot, fig.height = 7, fig.width = 7, eval = T}
 
 ppp <- PCA(dat_frm, scale.unit = F, graph = F)
@@ -150,17 +150,17 @@ Conclusions:
 
 * The toxicity measurements show a clear gradient from high to low across the sites.
 * The sites vary in which toxicity measurements are highest.  
-* The four groupings identified with kmeans clustering can be described as:
-     * green: low for all toxicity measurements, 
-     * blue: intermediate or not explained by any of the variables
-     * yellow: high in toxicity group 1
-     * purple: high in toxicity group 2
+* The four groupings identified with kmeans clustering can be described as follows.  The yellow and purple groups are both high in toxicity but differ in which variables are dominant.
+     * green (Group 3): low for all toxicity measurements, 
+     * blue (Group 2): intermediate or not explained by any of the variables
+     * yellow (Group 4): high in toxicity
+     * purple (Group 1): high in toxicity
 * Amphipod and embryonic survivability were not strongly associated with any particular group, although some associations were observed. In particular:
-     * Embryonic survivability was somewhat lower in the yellow group (high in toxicity group 1)
-     * Amphipod survivability was somewhat higher in the green group (low for all), somewhat lower in the purple group (high in toxicity group 2)
+     * Embryonic survivability was somewhat lower in the yellow group
+     * Amphipod survivability was somewhat higher in the green group, somewhat lower in the purple group
 * Spatial patterns were clear among the groupings:
-     * The yellow group (high in toxicitiy group 1) was most common in San Diego Bay
-     * The purple group (high in toxicity 2) was most common in the port of LA
+     * The yellow group was most common in San Diego Bay
+     * The purple group was most common in the port of LA
 * To do:
      * Which toxicity variables are driving the group differences
      * Which toxicity variables are most strongly associated with survivorship
