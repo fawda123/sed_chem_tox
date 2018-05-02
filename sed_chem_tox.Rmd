@@ -22,6 +22,8 @@ library(FactoMineR)
 library(ggord)
 library(mapview)
 library(sf)
+library(randomForest)
+library(gridExtra)
 
 data(dat)
 
@@ -92,7 +94,7 @@ mythm <- theme_bw(base_family = 'serif') +
   theme(
   legend.position = 'none', 
   strip.background = element_blank(), 
-  plot.margin = margin(0, 2, 0, 2, "pt")
+  plot.margin = ggplot2::margin(0, 2, 0, 2, "pt")
 ) 
 
 colord <- unique(toplo[, c('grps', 'cols')])
@@ -115,7 +117,7 @@ mythm <- theme_bw(base_family = 'serif') +
   theme(
   legend.position = 'none', 
   strip.background = element_blank(), 
-  plot.margin = margin(0, 2, 0, 2, "pt")
+  plot.margin = ggplot2::margin(0, 2, 0, 2, "pt")
 ) 
 
 p1 <- ggord(ppp, grp_in = as.character(grps), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
@@ -129,6 +131,105 @@ p2
 p3 <- ggord(ppp, grp_in = as.character(grps), axes = c('1', '3'), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
   mythm
 p3
+```
+
+```{r impplot, fig.height = 7, fig.width = 7, eval = T}
+tomod <- dat_frm %>% 
+  mutate(grps = factor(grps))
+
+tmp <- randomForest(grps ~ .,
+                    data = tomod, 
+                    importance = TRUE, 
+                    ntree = 1000, na.action = na.omit)
+
+# mximp <- tmp$importance %>% max    
+plos <- tmp$importance %>% 
+  as.data.frame %>%
+  rownames_to_column('var') %>% 
+  dplyr::select(-MeanDecreaseAccuracy, -MeanDecreaseGini) %>% 
+  gather('grp', 'importance', -var) %>% 
+  group_by(grp) %>% 
+  nest %>% 
+  mutate(
+    implo = pmap(list(as.character(grp), data), function(grp, data){
+
+      colfl <- colgrp %>% 
+        filter(grps %in% grp) %>% 
+        pull(cols)
+      
+      toplo <- data %>% 
+        arrange(-importance) %>% 
+        .[1:5, ] %>% 
+        mutate(var = factor(var, levels = var))
+      
+      p <- ggplot(toplo, aes(x = var, y = importance)) + 
+        geom_segment(aes(xend = var, yend = 0)) +
+        geom_point(fill = colfl, pch = 21, size = 3) + 
+        theme_bw() + 
+        theme(
+          axis.title.x = element_blank(), 
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
+          axis.title.y = element_blank()
+        ) + 
+        ggtitle(grp) + 
+        scale_y_continuous(limits = c(0, 0.18))
+      
+      
+      return(p)
+      
+    })
+  )
+
+p1 <- plos$implo[[1]]
+p2 <- plos$implo[[2]]
+p3 <- plos$implo[[3]]
+p4 <- plos$implo[[4]]
+
+grid.arrange(p1, p2, p3, p4, left = grid::textGrob('Importance', rot = 90))
+```
+
+```{r impplot2, fig.height = 4, fig.width = 7}
+plos <- dat_frm %>% 
+  gather('var', 'val', amph_surv, embr_surv) %>% 
+  group_by(var) %>% 
+  nest %>% 
+  mutate(
+    implo = pmap(list(var, data), function(var, data){
+
+      tmp <- randomForest(val ~ .,
+                          data = data, 
+                          importance = TRUE, 
+                          ntree = 1000, na.action = na.omit)
+      
+      toplo <- tmp$importance %>% 
+        as.data.frame %>%
+        rownames_to_column('var') %>% 
+        dplyr::select(-IncNodePurity) %>% 
+        rename(importance = `%IncMSE`) %>% 
+        arrange(-importance) %>% 
+        .[1:5, ] %>% 
+        mutate(var = factor(var, levels = var))
+      
+      p <- ggplot(toplo, aes(x = var, y = importance)) + 
+        geom_segment(aes(xend = var, yend = 0)) +
+        geom_point(fill = 'grey', pch = 21, size = 3) + 
+        theme_bw() + 
+        theme(
+          axis.title.x = element_blank(), 
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
+          axis.title.y = element_blank()
+        ) + 
+        ggtitle(var) 
+    
+      return(p)
+      
+    })
+  )
+
+p1 <- plos$implo[[1]]
+p2 <- plos$implo[[2]]
+
+grid.arrange(p1, p2, left = grid::textGrob('Importance', rot = 90), ncol = 2)
 ```
 
 Finally, this map shows the site locations that are color-coded by the clusters.  It can be used to evaluate spatial differences in the groupings.  
