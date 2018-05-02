@@ -7,7 +7,7 @@ output:
 self_contained: yes
 ---
 
-```{r, echo = F}
+```{r, echo = F, warning = F, message = F}
 library(knitr)
 opts_chunk$set(warning = FALSE, message = FALSE, fig.path = 'figs/', dev.args = list(bg = 'transparent'), eval = F)
 ```
