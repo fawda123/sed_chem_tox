@@ -133,7 +133,8 @@ p3 <- ggord(ppp, grp_in = as.character(grps), axes = c('1', '3'), vec_ext = 9, a
 p3
 ```
 
-```{r impplot, fig.height = 7, fig.width = 7, eval = T}
+Importance of variables was determined using random forest models to explain differences between the four groups identified from the cluster analysis.  Importance is measured as an absolute value, so high importance could mean a group was associated with a relatively high or relatively low value for a particular variable.  For example, groups 1 and 4 are associated with higher values of the explanatory variables as identified from the RDA biplots.  Importance estimates in the plots below indicate the top five most important variables for these groups, which also coincides with higher values for these variables.  Conversely, the RDA biplots show that group three is associated with lower values (or a lack of stressors) related to the explanatory variables.  The higher importance values suggest that absence of these variables explained the variation in group 3.  Group 2 is generally not explained by any of the variables as identified form the lowest importance values between all groups and the central location of the group in the RDA biplots.   
+```{r impplot1, fig.height = 7, fig.width = 7, eval = T}
 tomod <- dat_frm %>% 
   mutate(grps = factor(grps))
 
@@ -188,7 +189,8 @@ p4 <- plos$implo[[4]]
 grid.arrange(p1, p2, p3, p4, left = grid::textGrob('Importance', rot = 90))
 ```
 
-```{r impplot2, fig.height = 4, fig.width = 7}
+Random forests were also used to identify important variables explaining amphipod and embryonic survivability.  As before, high importance suggests a variable had a strong influence on survivability where importance could be interpreted as a strong negative or positive effect.  The orientation of vectors in the RDA plots show that survivability is generally opposed to the sediment toxicity measures, so high importance in the plots below indicates that a lack of the important variables explained an increase in survivability.  
+```{r impplot2, fig.height = 3.5, fig.width = 7, eval = T}
 plos <- dat_frm %>% 
   gather('var', 'val', amph_surv, embr_surv) %>% 
   group_by(var) %>% 
@@ -219,7 +221,8 @@ plos <- dat_frm %>%
           axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
           axis.title.y = element_blank()
         ) + 
-        ggtitle(var) 
+        ggtitle(var)  + 
+        scale_y_continuous(limits = c(0, 0.4))
     
       return(p)
       
@@ -262,6 +265,11 @@ Conclusions:
 * Spatial patterns were clear among the groupings:
      * The yellow group was most common in San Diego Bay
      * The purple group was most common in the port of LA
-* To do:
-     * Which toxicity variables are driving the group differences
-     * Which toxicity variables are most strongly associated with survivorship
+* Important variables were identified for each group:
+     * purple (Group 1): explained by high values in Ni, Ba, Sb, among others
+     * yellow (Group 4): explained by high values in Cr, Hg, Sn, among others
+     * green (Group 3): explained by low values of As, Fe, among others
+     * blue (Group 2): not strongly explained by any variables
+* Important variables were identified for survivability:
+     * Amphipod survivability explained by low values of Be, Co, among others
+     * Embryonic survivability explained by low values of Hg, Sn, among others
