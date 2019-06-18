@@ -9,10 +9,8 @@ self_contained: yes
 
 ```{r, echo = F, warning = F, message = F}
 library(knitr)
-opts_chunk$set(warning = FALSE, message = FALSE, fig.path = 'figs/', dev.args = list(bg = 'transparent'), eval = F)
-```
+opts_chunk$set(warning = FALSE, message = FALSE, fig.path = 'figs/', dev.args = list(bg = 'transparent'))
 
-```{r setup, eval = T}
 library(tidyverse)
 library(GGally)
 library(vegan)
@@ -28,20 +26,147 @@ library(gridExtra)
 data(dat)
 
 locs <- dat %>% 
-  select(station, lon, lat)
+  select(station, lon, lat) %>% 
+  mutate(station = as.character(station))
 evvr <- dat %>% 
   select(-toc, -fine, -tn, -depth, -lat, -lon)
+evvr_nomets <- dat %>% 
+  select(station, depth, toc, tn, fine, amph_surv, embr_surv)
+
 ```
+
+# {.tabset}
+
+## Nutrients
+
+The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Five measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), and embryonic survival (`embr_surv`).  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
+
+This plot shows relationships among raw variables - outliers are present and variables occur at different scales.
+```{r, fig.height = 7, fig.width = 7}
+ggpairs(evvr_nomets[, -c(1, 2)])
+```
+
+This plot is identical to the above but shows the variables after removing outliers and standardizing the scales (substract the mean and divide by variance).  This 'clean' dataset was used for all analyses.
+```{r, fig.height = 7, fig.width = 7}
+dat_frm <- evvr_nomets %>% 
+  select(-depth) %>% 
+  data.frame %>% 
+  filter(amph_surv > 30) %>% 
+  # filter(tn < 0.4 & toc < 4 & amph_surv > 30)%>% 
+  mutate(
+    tn = log10(tn),  
+    toc = log10(toc),
+    fine = ifelse(is.na(fine), mean(fine, na.rm = TRUE), fine), 
+    embr_surv = ifelse(is.na(embr_surv), mean(embr_surv, na.rm = TRUE), embr_surv)
+  ) %>% 
+  column_to_rownames('station') %>% 
+  decostand(method = 'standardize')
+  
+ggpairs(dat_frm)
+```
+
+This dendrogram shows clustering of sites based on dissimilarity matrix of Euclidean distances for the measured variables.  Sites closer to each other at the terminal branches are more similar.  The tree was cut to identify site groupings within which relative values of the measured variables were similar.  
+```{r, fig.width = 10}
+# cluster with euclidean dissim, ward grouping
+dend <- dat_frm %>%  
+  vegdist(method = 'euclidean') %>% 
+  hclust(method = 'average')
+
+ngrps <- 5
+grps <- cutree(dend, k = ngrps)
+grps[grps == 3] <- 5
+
+cols <- mapviewGetOption("vector.palette")(ngrps)
+cols[4] <- cols[5]
+colsd <- cols[c(1, 3, 2, 4, 5)]
+
+p1 <- dend %>% 
+  as.dendrogram %>% 
+  set("labels_cex", 0.4) %>% 
+  color_branches(k = ngrps, col = colsd) %>% 
+  color_labels(k = ngrps, col = colsd)
+
+# circlize_dendrogram(p1) 
+plot(p1)
+```
+
+The site groupings from the dendrogram were overlayed with the pairs plot above to identify which variables were driving group patterns.  
+```{r, fig.height = 7, fig.width = 7}
+cols <- cols[1:4]
+
+toplo <- dat_frm %>% 
+  mutate(Groups = as.character(grps))
+
+p <- ggpairs(toplo, mapping = ggplot2::aes(fill = Groups, colour = Groups))
+
+for (row in seq_len(p$nrow))
+    for (col in seq_len(p$ncol))
+        p[row, col] <- p[row, col] + scale_colour_manual(values = cols) + scale_fill_manual(values = cols)
+
+p
+```
+
+The site groupings from the dendrogram and variance among the measured variables were also evaluated using principal components analysis.  This ordination plot is similar to the dendrogram in that sites with similar characters are closer to each other in multivariate space.  In addition, the measured variables that are related to site groupings are also plotted as two-dimensional vectors.  The point cloud groupings in the plot were identified from the dendrogram cut above. The table shows significant correlations between the measured variables and dimensions of the PCA.
+```{r, fig.height = 5, fig.width = 5}
+cols <- cols[1:4]
+
+ppp <- PCA(dat_frm, scale.unit = F, graph = F)
+
+mythm <- theme_bw(base_family = 'serif') +
+  theme(
+  legend.position = 'none', 
+  strip.background = element_blank(), 
+  plot.margin = ggplot2::margin(0, 2, 0, 2, "pt")
+) 
+
+p1 <- ggord(ppp, grp_in = as.character(grps), vec_ext = 3, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
+  mythm
+p1
+
+dimdesc(ppp, axes = c(1:2))
+```
+
+Finally, this map shows the site locations that are color-coded by the groupings from the dendrogram.  It can be used to evaluate spatial differences in the groupings.  
+```{r}
+prstr <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+
+toplo <- dat_frm %>% 
+  rownames_to_column('station') %>% 
+  left_join(locs, by = 'station') %>% 
+  mutate(Groups = grps) %>% 
+  filter(!is.na(lon)) %>% 
+  st_as_sf(coords = c('lon', 'lat'), crs = prstr)
+
+mapview(toplo, zcol = 'Groups')
+```
+
+Conclusions: 
+
+* Chemistry variables were all positively correlated: high organic carbon was associated with high nitrogen, high nitrogen was associated wtih high percent fines, etc. 
+* Splitting the dendrogram into four groups creates relatively homogenous site groupings.  Most of the sites were in group 2, which is not strongly driven by any of the measured variables.  By contrast, groups 1, 4, and 5 are more distinct and can be explaind by the measured variables.
+* Group 1 sites had low measurements for sediment chemistry.  It was not related to any of the survivorship measurements.
+* Group 4 had the high embryonic survival and lowest amphipod survival.  This was not strongly linked to chemistry.
+* Group 5 was strongly related to high amphipod survival and low embryonic survival. This was not strongly linked to chemistry.
+
+The overall question needs to be identified. Below are some thoughts for consideration depending on the question.
+
+* What sediment characteristics influence toxicity?  None of the sediment chemistry variables were related to survivorship, addtiional data will be needed to answer this question.  
+* Is there redundancy in data collection efforts?  Chemistry measurements were correlated, so it may not be necessary to measure all of these variables.   
+* Can the sampling sites be reduced?  It depends on the scale of interest - within bays or Bight wide.  Either way, more data are needed.
+
+
+
+## Metals
 
 The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Twenty-eight measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), embryonic survival (`embr_surv`), and twenty-three metals.  Earlier analyses indicated that `tn`, `fine`, and `toc` were not related to survivability and these measurements were not evaluated further.  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
 
 This plot shows relationships among raw variables - outliers are present and variables occur at different scales.
-```{r pairplot, fig.height = 9, fig.width = 9, eval = T}
+```{r, fig.height = 9, fig.width = 9, eval = T}
 pairs(evvr[, -1], gap = 0, cex = 0.5, col = 'grey')
 ```
 
 This plot is identical to the above but shows the variables after removing outliers and standardizing the scales (substract the mean and divide by variance).  This 'clean' dataset was used for all analyses.
-```{r pairplot_cln, fig.height = 9, fig.width = 9, eval = T}
+```{r, fig.height = 9, fig.width = 9, eval = T}
 dat_frm <- evvr %>%
   data.frame %>%
   filter(amph_surv > 30) %>%
@@ -63,7 +188,7 @@ pairs(dat_frm, gap = 0, cex = 0.5, col = 'grey')
 ```
 
 The `kmeans` algorithm was used to assign sites to similar groups.  Group assignment using this algorithm is based on an iterative process where sites are assigned to minimize the within-group averages of the environmental variables.  The number of groups was chosen to maximize the separation in multivariate space (see the PCA biplot below) and based on spatial groupings of the data (see the map below).  The pairs plot below colors the sites by these groupings. 
-```{r dendro, fig.width = 9, fig.height = 9, eval = T}
+```{r, fig.width = 9, fig.height = 9, eval = T}
 set.seed(1234)
 ngrps <- 4
 grps <- kmeans(dat_frm, centers = ngrps, nstart = 10, iter.max = 30) %>% 
@@ -109,7 +234,7 @@ ggplot(toplo, aes(x = grps, y = val)) +
 ```
 
 The site groupings from the kmeans clusters and variance among the measured variables were also evaluated using principal components analysis.  The ordination plot shows sites with similar characteristics closer to each other in multivariate space.  In addition, the measured variables that are related to site groupings are also plotted as two-dimensional vectors.  The point cloud groupings in the plot were identified from the kmeans clustering. Axis one explains a gradient in toxicity from low to high, axis two shows which groups of toxicity variables are dominant when measurements are high (separating the 'high' groups 1 and 4), and axis 3 somewhat shows which variables were not important for distinguishing between groups 1 and 4. 
-```{r ordiplot, fig.height = 7, fig.width = 7, eval = T}
+```{r, fig.height = 7, fig.width = 7, eval = T}
 
 ppp <- PCA(dat_frm, scale.unit = F, graph = F)
 
@@ -134,7 +259,7 @@ p3
 ```
 
 Importance of variables was determined using random forest models to explain differences between the four groups identified from the cluster analysis.  Importance is measured as an absolute value, so high importance could mean a group was associated with a relatively high or relatively low value for a particular variable.  For example, groups 1 and 4 are associated with higher values of the explanatory variables as identified from the RDA biplots.  Importance estimates in the plots below indicate the top five most important variables for these groups, which also coincides with higher values for these variables.  Conversely, the RDA biplots show that group three is associated with lower values (or a lack of stressors) related to the explanatory variables.  The higher importance values suggest that absence of these variables explained the variation in group 3.  Group 2 is generally not explained by any of the variables as identified form the lowest importance values between all groups and the central location of the group in the RDA biplots.   
-```{r impplot1, fig.height = 7, fig.width = 7, eval = T}
+```{r, fig.height = 7, fig.width = 7, eval = T}
 tomod <- dat_frm %>% 
   mutate(grps = factor(grps))
 
@@ -190,7 +315,7 @@ grid.arrange(p1, p2, p3, p4, left = grid::textGrob('Importance', rot = 90))
 ```
 
 Random forests were also used to identify important variables explaining amphipod and embryonic survivability.  As before, high importance suggests a variable had a strong influence on survivability where importance could be interpreted as a strong negative or positive effect.  The orientation of vectors in the RDA plots show that survivability is generally opposed to the sediment toxicity measures, so high importance in the plots below indicates that a lack of the important variables explained an increase in survivability.  
-```{r impplot2, fig.height = 3.5, fig.width = 7, eval = T}
+```{r, fig.height = 3.5, fig.width = 7, eval = T}
 plos <- dat_frm %>% 
   gather('var', 'val', amph_surv, embr_surv) %>% 
   group_by(var) %>% 
@@ -241,7 +366,6 @@ prstr <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 
 toplo <- dat_frm %>% 
   rownames_to_column('station') %>% 
-  mutate(station = as.numeric(station)) %>% 
   left_join(locs, by = 'station') %>% 
   mutate(Groups = grps) %>% 
   filter(!is.na(lon)) %>% 
