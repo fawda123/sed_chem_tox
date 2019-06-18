@@ -37,9 +37,9 @@ evvr_nomets <- dat %>%
 
 # {.tabset}
 
-## Nutrients
+The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Twenty-eight measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), embryonic survival (`embr_surv`), and twenty-three metals.  Earlier analyses indicated that `tn`, `fine`, and `toc` were not related to survivability and these measurements were not evaluated further.  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
 
-The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Five measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), and embryonic survival (`embr_surv`).  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
+## Nutrients
 
 This plot shows relationships among raw variables - outliers are present and variables occur at different scales.
 ```{r, fig.height = 7, fig.width = 7}
@@ -72,12 +72,17 @@ dend <- dat_frm %>%
   vegdist(method = 'euclidean') %>% 
   hclust(method = 'average')
 
+# grouping vector
 ngrps <- 5
 grps <- cutree(dend, k = ngrps)
 grps[grps == 3] <- 5
+grps[grps == 4] <- 3
+grps[grps == 5] <- 4
 
+# color vector for groups
 cols <- mapviewGetOption("vector.palette")(ngrps)
 cols[4] <- cols[5]
+cols[c(4,5)] <- 'orange'
 colsd <- cols[c(1, 3, 2, 4, 5)]
 
 p1 <- dend %>% 
@@ -137,7 +142,7 @@ toplo <- dat_frm %>%
   filter(!is.na(lon)) %>% 
   st_as_sf(coords = c('lon', 'lat'), crs = prstr)
 
-mapview(toplo, zcol = 'Groups')
+mapview(toplo, zcol = 'Groups', col.regions = cols, layer.name = 'Groups')
 ```
 
 Conclusions: 
@@ -157,8 +162,6 @@ The overall question needs to be identified. Below are some thoughts for conside
 
 
 ## Metals
-
-The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Twenty-eight measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), embryonic survival (`embr_surv`), and twenty-three metals.  Earlier analyses indicated that `tn`, `fine`, and `toc` were not related to survivability and these measurements were not evaluated further.  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
 
 This plot shows relationships among raw variables - outliers are present and variables occur at different scales.
 ```{r, fig.height = 9, fig.width = 9, eval = T}
@@ -193,7 +196,9 @@ set.seed(1234)
 ngrps <- 4
 grps <- kmeans(dat_frm, centers = ngrps, nstart = 10, iter.max = 30) %>% 
   .$cluster
+
 cols <- mapviewGetOption("vector.palette")(ngrps)
+cols[4] <- 'orange'
 
 colgrp <- data.frame(
   grps = c(1:ngrps), 
@@ -371,7 +376,7 @@ toplo <- dat_frm %>%
   filter(!is.na(lon)) %>% 
   st_as_sf(coords = c('lon', 'lat'), crs = prstr)
 
-mapview(toplo, zcol = 'Groups')
+mapview(toplo, zcol = 'Groups', col.regions = cols, layer.name = 'Groups')
 ```
 
 Conclusions: 
