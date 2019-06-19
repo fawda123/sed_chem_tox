@@ -126,6 +126,7 @@ p1 <- dend %>%
 
 jpeg(here('figs', 'siteclsts.jpg'), height = 4.5, width = 10, units = 'in', res = 500, family = 'serif')
 plot(p1, ylab = 'Dissimilarity', xlab = 'Monitoring stations (155)')
+legend('topleft', legend = c('1', '2', '3', '4'), fill = cols, title = 'Groups', bty = 'n')
 dev.off()
 ```
 ```{r clstmap, fig.cap = "Dendrogram showing sites clustering based on a dissimilarity matrix of Euclidean distances for the measured variables. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 3, 20; group 2, 107; group 4, 14.", out.width = "100%", fig.align = 'center'}
