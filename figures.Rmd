@@ -31,23 +31,25 @@ g_legend <- function(a.gplot){
 
 load(file = here('data', 'dat.RData'))
 
-locs <- dat %>% 
-  select(station, lon, lat) %>% 
-  mutate(station = as.character(station))
+# rename toxicity columns
+dat <- dat %>% 
+  rename(
+    `Embr. surv.` = embr_surv, 
+    `Amph. surv.` = amph_surv
+  )
 
 # nutrients formatted data
 # outlier removed, some variables transformed, values standardized
 dat_frm <- dat %>% 
-  select(station, depth, toc, tn, fine, amph_surv, embr_surv) %>% 
+  select(station, depth, toc, tn, fine, `Amph. surv.`, `Embr. surv.`) %>% 
   select(-depth) %>% 
-  data.frame %>% 
-  filter(amph_surv > 30) %>% 
-  # filter(tn < 0.4 & toc < 4 & amph_surv > 30)%>% 
+  filter(`Amph. surv.` > 30) %>% 
+  # filter(tn < 0.4 & toc < 4 & `Amph. surv.` > 30)%>% 
   mutate(
     tn = log10(tn),  
     toc = log10(toc),
     fine = ifelse(is.na(fine), mean(fine, na.rm = TRUE), fine), 
-    embr_surv = ifelse(is.na(embr_surv), mean(embr_surv, na.rm = TRUE), embr_surv)
+    `Embr. surv.` = ifelse(is.na(`Embr. surv.`), mean(`Embr. surv.`, na.rm = TRUE), `Embr. surv.`)
   ) %>% 
   column_to_rownames('station') %>% 
   decostand(method = 'standardize')
@@ -56,15 +58,14 @@ dat_frm <- dat %>%
 # outliers removed, values standardized
 dat_frm_mets <- dat %>% 
   select(-toc, -fine, -tn, -depth, -lat, -lon) %>% 
-  data.frame %>%
-  filter(amph_surv > 30) %>%
+  filter(`Amph. surv.` > 30) %>%
   filter(Hg < 5) %>% 
   filter(Cr < 100) %>% 
   filter(Ba < 600) %>% 
   filter(Sb < 1.3) %>% 
   filter(Ag < 2) %>% 
   mutate(
-    embr_surv = ifelse(is.na(embr_surv), median(embr_surv, na.rm = TRUE), embr_surv), 
+    `Embr. surv.` = ifelse(is.na(`Embr. surv.`), median(`Embr. surv.`, na.rm = TRUE), `Embr. surv.`), 
     Al = ifelse(is.na(Al), median(Al, na.rm = TRUE), Al),
     Sb = ifelse(is.na(Sb), median(Sb, na.rm = TRUE), Sb),
     As = ifelse(is.na(As), median(As, na.rm = TRUE), As)
@@ -193,7 +194,7 @@ toplo <- dat_frm_mets %>%
     max = quantile(val, probs = 0.95, na.rm = T)
   ) %>% 
   ungroup() %>% 
-  mutate(var = fct_relevel(var, 'amph_surv', 'embr_surv'))
+  mutate(var = fct_relevel(var, 'Amph. surv.', 'Embr. surv.'))
 
 p <- ggplot(toplo, aes(x = grps, y = med)) + 
   geom_errorbar(aes(ymin = min, ymax = max), width = 0) +
@@ -245,7 +246,11 @@ knitr::include_graphics(here('figs', 'pcamets.jpg'))
 
 ```{r, results = 'hide'}
 tomod <- dat_frm_mets %>% 
-  mutate(grps = factor(grps))
+  mutate(grps = factor(grps)) %>% 
+  rename(
+    amph_surv = `Amph. surv.`, 
+    embr_surv = `Embr. surv.`
+  )
 
 set.seed(123)
 tmp <- randomForest(grps ~ .,
@@ -279,11 +284,12 @@ plos <- tmp$importance %>%
         theme_bw() + 
         theme(
           axis.title.x = element_blank(), 
-          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
+          # axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
           axis.title.y = element_blank()
         ) + 
         ggtitle(grp) + 
-        scale_y_continuous(limits = c(0, 0.17))
+        scale_y_continuous(limits = c(0, 0.17), labels = scales::percent) + 
+        coord_flip()
       
       
       return(p)
@@ -293,7 +299,7 @@ plos <- tmp$importance %>%
 
 # variable importance for toxicity 
 plos2 <- dat_frm_mets %>% 
-  gather('var', 'val', amph_surv, embr_surv) %>% 
+  gather('var', 'val', `Amph. surv.`, `Embr. surv.`) %>% 
   group_by(var) %>% 
   nest %>% 
   mutate(
@@ -319,11 +325,12 @@ plos2 <- dat_frm_mets %>%
         theme_bw() + 
         theme(
           axis.title.x = element_blank(), 
-          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
+          # axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
           axis.title.y = element_blank()
         ) + 
         ggtitle(var)  + 
-        scale_y_continuous(limits = c(0, 0.41))
+        scale_y_continuous(limits = c(0, 0.41), labels = scales::percent) + 
+        coord_flip()
     
       return(p)
       
@@ -349,3 +356,10 @@ dev.off()
 ```{r grpimp, fig.cap = "Variable importance estimates from random forest models describing (a) group clusters pr (b) differences among sites for toxicity test results.  Importance estimates are based on the increase in mean square error (MSE) for excluding a specific variable from the random forest model.", out.width = "60%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'grpimp.jpg'))
 ```
+
+## Map
+
+```{r, fig.cap = "Map showing site locations color-coded by clusters. A: Ventura-Oxnard, B: Marina Del Rey, C: Port of Los Angeles (San Pedro), D: Costa Mesa, E: Dana Point, F: Oceanside, G: Carlsbad-Encinitas-Solana Beach, H: San Diego Bay.", out.width = "60%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'sitemap.jpg'))
+```
+
