@@ -1,13 +1,10 @@
 ---
-title: "Sediment toxicity analysis"
-author: ""
 output: 
-  html_document:
+  bookdown::html_document2:
     code_folding: hide
-self_contained: yes
 ---
 
-```{r, echo = F, warning = F, message = F}
+```{r message = F, warning = F, results = 'hide', echo = F}
 library(knitr)
 opts_chunk$set(warning = FALSE, message = FALSE, fig.path = 'figs/', dev.args = list(bg = 'transparent'))
 
@@ -22,81 +19,121 @@ library(mapview)
 library(sf)
 library(randomForest)
 library(gridExtra)
+library(here)
+library(patchwork)
 
-data(dat)
+# get legend from an existing ggplot object
+g_legend <- function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)}
 
-locs <- dat %>% 
-  select(station, lon, lat) %>% 
-  mutate(station = as.character(station))
-evvr <- dat %>% 
-  select(-toc, -fine, -tn, -depth, -lat, -lon)
-evvr_nomets <- dat %>% 
-  select(station, depth, toc, tn, fine, amph_surv, embr_surv)
+load(file = here('data', 'dat.RData'))
 
-```
+# rename toxicity columns
+dat <- dat %>% 
+  rename(
+    `Embr. surv.` = embr_surv, 
+    `Amph. surv.` = amph_surv, 
+    `% TN` = tn, 
+    `% TOC` = toc, 
+    `% Fines` = fine
+  )
 
-# {.tabset}
-
-The sediment toxicity dataset includes measurements at 155 coastal sites as part of the Bight 2008 sampling.  Twenty-eight measurements are available for each site: total organic carbon (`toc`), total nitrogen (`tn`), percent fine sediment (`fine`), amphipod survival (`amph_surv`), embryonic survival (`embr_surv`), and twenty-three metals.  Earlier analyses indicated that `tn`, `fine`, and `toc` were not related to survivability and these measurements were not evaluated further.  This exploratory analysis was conducted to 1) evaluate correlations among measurements across the sites and 2) identify if sites could be characterized by similarities in characteristics.  The objective was to identify patterns among sites that may explain differences in survival rates or by location.  
-
-## Nutrients
-
-This plot shows relationships among raw variables - outliers are present and variables occur at different scales.
-```{r, fig.height = 7, fig.width = 7}
-ggpairs(evvr_nomets[, -c(1, 2)])
-```
-
-This plot is identical to the above but shows the variables after removing outliers and standardizing the scales (substract the mean and divide by variance).  This 'clean' dataset was used for all analyses.
-```{r, fig.height = 7, fig.width = 7}
-dat_frm <- evvr_nomets %>% 
+# nutrients formatted data
+# outlier removed, some variables transformed, values standardized
+dat_frm <- dat %>% 
+  select(station, depth, `% TOC`, `% TN`, `% Fines`, `Amph. surv.`, `Embr. surv.`) %>% 
   select(-depth) %>% 
-  data.frame %>% 
-  filter(amph_surv > 30) %>% 
-  # filter(tn < 0.4 & toc < 4 & amph_surv > 30)%>% 
+  filter(`Amph. surv.` > 30) %>% 
+  # filter(`% TN` < 0.4 & `% TOC` < 4 & `Amph. surv.` > 30)%>% 
   mutate(
-    tn = log10(tn),  
-    toc = log10(toc),
-    fine = ifelse(is.na(fine), mean(fine, na.rm = TRUE), fine), 
-    embr_surv = ifelse(is.na(embr_surv), mean(embr_surv, na.rm = TRUE), embr_surv)
+    `% TN` = log10(`% TN`),  
+    `% TOC` = log10(`% TOC`),
+    `% Fines` = ifelse(is.na(`% Fines`), mean(`% Fines`, na.rm = TRUE), `% Fines`), 
+    `Embr. surv.` = ifelse(is.na(`Embr. surv.`), mean(`Embr. surv.`, na.rm = TRUE), `Embr. surv.`)
   ) %>% 
   column_to_rownames('station') %>% 
   decostand(method = 'standardize')
-  
-ggpairs(dat_frm)
+
+# metals formatted data
+# outliers removed, values standardized
+dat_frm_mets <- dat %>% 
+  select(-`% TOC`, -`% Fines`, -`% TN`, -depth, -lat, -lon) %>% 
+  filter(`Amph. surv.` > 30) %>%
+  filter(Hg < 5) %>% 
+  filter(Cr < 100) %>% 
+  filter(Ba < 600) %>% 
+  filter(Sb < 1.3) %>% 
+  filter(Ag < 2) %>% 
+  mutate(
+    `Embr. surv.` = ifelse(is.na(`Embr. surv.`), median(`Embr. surv.`, na.rm = TRUE), `Embr. surv.`), 
+    Al = ifelse(is.na(Al), median(Al, na.rm = TRUE), Al),
+    Sb = ifelse(is.na(Sb), median(Sb, na.rm = TRUE), Sb),
+    As = ifelse(is.na(As), median(As, na.rm = TRUE), As)
+  ) %>%
+  column_to_rownames('station') %>%
+  decostand(method = 'standardize')
+
+# ggplot theme1
+mythm1 <- theme_bw(base_family = 'serif') +
+  theme(
+    legend.position = 'none', 
+    strip.background = element_blank(), 
+    plot.margin = ggplot2::margin(0, 2, 0, 2, "pt")
+  ) 
+
+# ggplot theme2
+mythm2 <- theme_bw(base_family = 'serif') +
+  theme(
+    legend.position = 'none', 
+    strip.background = element_blank()
+  ) 
+
 ```
 
-This dendrogram shows clustering of sites based on dissimilarity matrix of Euclidean distances for the measured variables.  Sites closer to each other at the terminal branches are more similar.  The tree was cut to identify site groupings within which relative values of the measured variables were similar.  
-```{r, fig.width = 10}
+# Figures {.tabset}
+
+## Dendrogram nutrients
+
+[download](figs/siteclsts.jpg)
+```{r, results = 'hide'}
+set.seed(1234)
+
 # cluster with euclidean dissim, ward grouping
 dend <- dat_frm %>%  
   vegdist(method = 'euclidean') %>% 
-  hclust(method = 'average')
+  hclust(method = 'ward.D2')
 
 # grouping vector
-ngrps <- 5
+ngrps <- 4
 grps <- cutree(dend, k = ngrps)
-grps[grps == 3] <- 5
-grps[grps == 4] <- 3
-grps[grps == 5] <- 4
 
 # color vector for groups
 cols <- mapviewGetOption("vector.palette")(ngrps)
-cols[4] <- cols[5]
-cols[c(4,5)] <- 'orange'
-colsd <- cols[c(1, 3, 2, 4, 5)]
+cols[4] <- 'orange'
 
 p1 <- dend %>% 
   as.dendrogram %>% 
-  set("labels_cex", 0.4) %>% 
-  color_branches(k = ngrps, col = colsd) %>% 
-  color_labels(k = ngrps, col = colsd)
+  set("labels_cex", NA) %>%
+  color_branches(k = ngrps, col = cols) #%>% 
+  # color_labels(k = ngrps, col = colsd)
 
-# circlize_dendrogram(p1) 
-plot(p1)
+jpeg(here('figs', 'siteclsts.jpg'), height = 5.5, width = 7, units = 'in', res = 500, family = 'serif')
+par(mar = c(2.5, 4.5, 0.25, 0))
+plot(p1, ylab = 'Dissimilarity')
+legend('topright', legend = c('1', '2', '3', '4'), fill = cols, title = 'Groups', bty = 'n')
+title(xlab = 'Monitoring stations (153)', line = 0)
+dev.off()
+```
+```{r clstmap, fig.cap = "Dendrogram showing site clusters based on a dissimilarity matrix of Euclidean distances for the measured variables. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 2, 107; group 3, 20; group 4, 14.", out.width = "60%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'siteclsts.jpg'))
 ```
 
-The site groupings from the dendrogram were overlayed with the pairs plot above to identify which variables were driving group patterns.  
-```{r, fig.height = 7, fig.width = 7}
+## Pairs plot, nutrients
+
+```{r, results = 'hide'}
 cols <- cols[1:4]
 
 toplo <- dat_frm %>% 
@@ -108,172 +145,167 @@ for (row in seq_len(p$nrow))
     for (col in seq_len(p$ncol))
         p[row, col] <- p[row, col] + scale_colour_manual(values = cols) + scale_fill_manual(values = cols)
 
+
+# circlize_dendrogram(p1) 
+jpeg(here('figs', 'prplts.jpg'), height = 7, width = 7, units = 'in', res = 500, family = 'serif')
 p
+dev.off()
+```
+```{r prplts, fig.cap = "A generalized pairs plot (Emerson et al. 2013) displaying paired combinations of categorical and continuous variables. The site groupings are based on differences among sites using sediment nutrient data and results of toxicity tests.", out.width = "70%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'prplts.jpg'))
 ```
 
-The site groupings from the dendrogram and variance among the measured variables were also evaluated using principal components analysis.  This ordination plot is similar to the dendrogram in that sites with similar characters are closer to each other in multivariate space.  In addition, the measured variables that are related to site groupings are also plotted as two-dimensional vectors.  The point cloud groupings in the plot were identified from the dendrogram cut above. The table shows significant correlations between the measured variables and dimensions of the PCA.
-```{r, fig.height = 5, fig.width = 5}
+## PCA nutrients
+
+```{r, results = 'hide'}
 cols <- cols[1:4]
 
 ppp <- PCA(dat_frm, scale.unit = F, graph = F)
 
-mythm <- theme_bw(base_family = 'serif') +
-  theme(
-  legend.position = 'none', 
-  strip.background = element_blank(), 
-  plot.margin = ggplot2::margin(0, 2, 0, 2, "pt")
-) 
+p1 <- ggord(ppp, grp_in = as.character(grps), vec_ext = 3, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols, repel = T, coord_fix = F) + 
+  mythm2
 
-p1 <- ggord(ppp, grp_in = as.character(grps), vec_ext = 3, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
-  mythm
-p1
+p2 <- ggord(ppp, grp_in = as.character(grps), axes = c('2', '3'), vec_ext = 3, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols, repel = T, coord_fix = F) + 
+  mythm2
 
-dimdesc(ppp, axes = c(1:2))
+
+p3 <- ggord(ppp, grp_in = as.character(grps), axes = c('1', '3'), vec_ext = 3, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols, repel = T, coord_fix = F) +
+  theme(legend.position = 'top')
+pleg <- g_legend(p3)
+p3 <- p3 + mythm2
+
+jpeg(here('figs', 'pcanuts.jpg'), height = 4.5, width = 11, units = 'in', res = 500, family = 'serif')
+# {p1 + p2 + p3 + plot_layout(ncol = 1)} - 
+#     pleg + plot_layout(ncol = 2, widths = c(1, 0.2))
+wrap_elements(pleg) + {p1 + p2 + p3 + plot_layout(ncol = 3)} +
+    plot_layout(ncol = 1, heights = c(0.2, 1))
+dev.off()
+```
+```{r pcanuts, fig.cap = "Site groupings from the k-means clustering and variance among the measured variables using principal components analysis. Vectors include % total nitrogen, % total organic content, % fines, amphipod survivability, and embryonic survivability. The first three PCA axes are shown, with each plot showing a different combination of axes.", out.width = "45%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'pcanuts.jpg'))
 ```
 
-Finally, this map shows the site locations that are color-coded by the groupings from the dendrogram.  It can be used to evaluate spatial differences in the groupings.  
-```{r}
-prstr <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+## Dendrogram metals
 
-toplo <- dat_frm %>% 
-  rownames_to_column('station') %>% 
-  left_join(locs, by = 'station') %>% 
-  mutate(Groups = grps) %>% 
-  filter(!is.na(lon)) %>% 
-  st_as_sf(coords = c('lon', 'lat'), crs = prstr)
-
-mapview(toplo, zcol = 'Groups', col.regions = cols, layer.name = 'Groups')
-```
-
-Conclusions: 
-
-* Chemistry variables were all positively correlated: high organic carbon was associated with high nitrogen, high nitrogen was associated wtih high percent fines, etc. 
-* Splitting the dendrogram into four groups creates relatively homogenous site groupings.  Most of the sites were in group 2, which is not strongly driven by any of the measured variables.  By contrast, groups 1, 4, and 5 are more distinct and can be explaind by the measured variables.
-* Group 1 sites had low measurements for sediment chemistry.  It was not related to any of the survivorship measurements.
-* Group 4 had the high embryonic survival and lowest amphipod survival.  This was not strongly linked to chemistry.
-* Group 5 was strongly related to high amphipod survival and low embryonic survival. This was not strongly linked to chemistry.
-
-The overall question needs to be identified. Below are some thoughts for consideration depending on the question.
-
-* What sediment characteristics influence toxicity?  None of the sediment chemistry variables were related to survivorship, addtiional data will be needed to answer this question.  
-* Is there redundancy in data collection efforts?  Chemistry measurements were correlated, so it may not be necessary to measure all of these variables.   
-* Can the sampling sites be reduced?  It depends on the scale of interest - within bays or Bight wide.  Either way, more data are needed.
-
-
-
-## Metals
-
-This plot shows relationships among raw variables - outliers are present and variables occur at different scales.
-```{r, fig.height = 9, fig.width = 9, eval = T}
-pairs(evvr[, -1], gap = 0, cex = 0.5, col = 'grey')
-```
-
-This plot is identical to the above but shows the variables after removing outliers and standardizing the scales (substract the mean and divide by variance).  This 'clean' dataset was used for all analyses.
-```{r, fig.height = 9, fig.width = 9, eval = T}
-dat_frm <- evvr %>%
-  data.frame %>%
-  filter(amph_surv > 30) %>%
-  filter(Hg < 5) %>% 
-  filter(Cr < 100) %>% 
-  filter(Ba < 600) %>% 
-  filter(Sb < 1.3) %>% 
-  filter(Ag < 2) %>% 
-  mutate(
-    embr_surv = ifelse(is.na(embr_surv), median(embr_surv, na.rm = TRUE), embr_surv), 
-    Al = ifelse(is.na(Al), median(Al, na.rm = TRUE), Al),
-    Sb = ifelse(is.na(Sb), median(Sb, na.rm = TRUE), Sb),
-    As = ifelse(is.na(As), median(As, na.rm = TRUE), As)
-  ) %>%
-  column_to_rownames('station') %>%
-  decostand(method = 'standardize')
-
-pairs(dat_frm, gap = 0, cex = 0.5, col = 'grey')
-```
-
-The `kmeans` algorithm was used to assign sites to similar groups.  Group assignment using this algorithm is based on an iterative process where sites are assigned to minimize the within-group averages of the environmental variables.  The number of groups was chosen to maximize the separation in multivariate space (see the PCA biplot below) and based on spatial groupings of the data (see the map below).  The pairs plot below colors the sites by these groupings. 
-```{r, fig.width = 9, fig.height = 9, eval = T}
+```{r, results = 'hide'}
+# metals clustering
 set.seed(1234)
 ngrps <- 4
-grps <- kmeans(dat_frm, centers = ngrps, nstart = 10, iter.max = 30) %>% 
-  .$cluster
 
+# metals cluster colors
 cols <- mapviewGetOption("vector.palette")(ngrps)
 cols[4] <- 'orange'
 
+# cluster with euclidean dissim, ward grouping
+dend <- dat_frm_mets %>%  
+  vegdist(method = 'euclidean') %>% 
+  hclust(method = 'ward.D2')
+
+# grouping vector
+grps <- cutree(dend, k = ngrps)
+
+p1 <- dend %>% 
+  as.dendrogram %>% 
+  set("labels_cex", NA) %>%
+  color_branches(k = ngrps, col = cols) #%>% 
+  # color_labels(k = ngrps, col = colsd)
+
+jpeg(here('figs', 'siteclstsmet.jpg'), height = 5.5, width = 7, units = 'in', res = 500, family = 'serif')
+par(mar = c(2.5, 4.5, 0.25, 0))
+plot(p1, ylab = 'Dissimilarity')
+legend('topright', legend = c('1', '2', '3', '4'), fill = cols, title = 'Groups', bty = 'n')
+title(xlab = 'Monitoring stations (153)', line = 0)
+dev.off()
+```
+
+```{r siteclstsmet, fig.cap = "Dendrogram showing site clusters based on a dissimilarity matrix of Euclidean distances for the measured variables. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 2, 107; group 3, 20; group 4, 14.", out.width = "50%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'siteclstsmet.jpg'))
+```
+
+## Metals group summaries
+
+```{r, results = 'hide'}
 colgrp <- data.frame(
   grps = c(1:ngrps), 
   cols = cols, 
   stringsAsFactors = F
 )
 
-colprs <- left_join(
-    data.frame(grps = grps), colgrp, by = 'grps'
-  )
-
-pairs(dat_frm, gap = 0, cex = 0.5, col = as.character(colprs$cols))
-```
-
-The boxplots show the individual distributions of the environmental variables by the groups.
-```{r, fig.height = 9, fig.width = 9, eval = T}
-toplo <- dat_frm %>% 
+# data for summary plot
+toplo <- dat_frm_mets %>% 
   mutate(grps = grps) %>% 
   left_join(colgrp, by = 'grps') %>% 
   mutate(grps = factor(grps)) %>% 
-  gather('var', 'val', -grps, -cols)
-mythm <- theme_bw(base_family = 'serif') +
-  theme(
-  legend.position = 'none', 
-  strip.background = element_blank(), 
-  plot.margin = ggplot2::margin(0, 2, 0, 2, "pt")
-) 
+  gather('var', 'val', -grps, -cols) %>% 
+  group_by(grps, cols, var) %>% 
+  summarise(
+    med = quantile(val, probs = 0.5, na.rm = T),
+    min = quantile(val, probs = 0.05, na.rm = T),
+    max = quantile(val, probs = 0.95, na.rm = T)
+  ) %>% 
+  ungroup() %>% 
+  mutate(var = fct_relevel(var, 'Amph. surv.', 'Embr. surv.'))
 
-colord <- unique(toplo[, c('grps', 'cols')])
-
-ggplot(toplo, aes(x = grps, y = val)) + 
-  geom_boxplot(outlier.size = -1) + 
-  geom_jitter(colour = toplo$cols, alpha = 0.3, width = 0.15) + 
+p <- ggplot(toplo, aes(x = grps, y = med)) + 
+  geom_errorbar(aes(ymin = min, ymax = max), width = 0) +
+  geom_point(pch = 21, fill = toplo$cols, size = 3) +
   facet_wrap(~var, ncol = 5) + 
-  mythm + 
-  scale_y_continuous('Standardized measurements')
-  
+  mythm1 + 
+  scale_y_continuous('Standardized measurements') + 
+  scale_x_discrete('Groups')
+
+jpeg(here('figs', 'metsums.jpg'), height = 7, width = 4.5, units = 'in', res = 500, family = 'serif')
+p
+dev.off()
+```
+```{r metsums, fig.cap = "Summaries (median and 5th/95th percentiles) of toxicity measurements and metal concentrations among the groups defined with cluster analysis. The y-axis is standardized for relative comparisons among groups and constituents.", out.width = "50%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'metsums.jpg'))
 ```
 
-The site groupings from the kmeans clusters and variance among the measured variables were also evaluated using principal components analysis.  The ordination plot shows sites with similar characteristics closer to each other in multivariate space.  In addition, the measured variables that are related to site groupings are also plotted as two-dimensional vectors.  The point cloud groupings in the plot were identified from the kmeans clustering. Axis one explains a gradient in toxicity from low to high, axis two shows which groups of toxicity variables are dominant when measurements are high (separating the 'high' groups 1 and 4), and axis 3 somewhat shows which variables were not important for distinguishing between groups 1 and 4. 
-```{r, fig.height = 7, fig.width = 7, eval = T}
+## PCA metals
 
-ppp <- PCA(dat_frm, scale.unit = F, graph = F)
+```{r, results = 'hide'}
+ppp <- PCA(dat_frm_mets, scale.unit = F, graph = F)
 
-mythm <- theme_bw(base_family = 'serif') +
-  theme(
-  legend.position = 'none', 
-  strip.background = element_blank(), 
-  plot.margin = ggplot2::margin(0, 2, 0, 2, "pt")
-) 
+p1 <- ggord(ppp, grp_in = as.character(grps), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols, coord_fix = F) + 
+  mythm2
 
-p1 <- ggord(ppp, grp_in = as.character(grps), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
-  mythm
-p1
+p2 <- ggord(ppp, grp_in = as.character(grps), axes = c('2', '3'), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols, coord_fix = F) + 
+  mythm2
 
-p2 <- ggord(ppp, grp_in = as.character(grps), axes = c('2', '3'), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
-  mythm
-p2
+p3 <- ggord(ppp, grp_in = as.character(grps), axes = c('1', '3'), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols, coord_fix = F)  + 
+  theme(legend.position = 'top')
+pleg <- g_legend(p3)
+p3 <- p3 + mythm2
 
-p3 <- ggord(ppp, grp_in = as.character(grps), axes = c('1', '3'), vec_ext = 9, alpha = 0.8, size = 2, txt = 4, arrow = 0.2, cols = cols) + 
-  mythm
-p3
+jpeg(here('figs', 'pcamets.jpg'), height = 4.5, width = 11, units = 'in', res = 500, family = 'serif')
+# {p1 + p2 + p3 + plot_layout(ncol = 1)} - 
+#     pleg + plot_layout(ncol = 2, widths = c(1, 0.2))
+wrap_elements(pleg) + {p1 + p2 + p3 + plot_layout(ncol = 3)} +
+    plot_layout(ncol = 1, heights = c(0.2, 1))
+dev.off()
+```
+```{r pcamets, fig.cap = "Site groupings from the k-means clustering and variance among the measured variables using principal components analysis. Vectors include amphipod survivability, embryonic survivability, and 26 metal constituents. The first three PCA axes are shown, with each plot showing a different combination of axes.", out.width = "45%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'pcamets.jpg'))
 ```
 
-Importance of variables was determined using random forest models to explain differences between the four groups identified from the cluster analysis.  Importance is measured as an absolute value, so high importance could mean a group was associated with a relatively high or relatively low value for a particular variable.  For example, groups 1 and 4 are associated with higher values of the explanatory variables as identified from the RDA biplots.  Importance estimates in the plots below indicate the top five most important variables for these groups, which also coincides with higher values for these variables.  Conversely, the RDA biplots show that group three is associated with lower values (or a lack of stressors) related to the explanatory variables.  The higher importance values suggest that absence of these variables explained the variation in group 3.  Group 2 is generally not explained by any of the variables as identified form the lowest importance values between all groups and the central location of the group in the RDA biplots.   
-```{r, fig.height = 7, fig.width = 7, eval = T}
-tomod <- dat_frm %>% 
-  mutate(grps = factor(grps))
+## Metals variable importance
 
+```{r, results = 'hide'}
+tomod <- dat_frm_mets %>% 
+  mutate(grps = factor(grps)) %>% 
+  rename(
+    amph_surv = `Amph. surv.`, 
+    embr_surv = `Embr. surv.`
+  )
+
+set.seed(123)
 tmp <- randomForest(grps ~ .,
                     data = tomod, 
                     importance = TRUE, 
                     ntree = 1000, na.action = na.omit)
 
-# mximp <- tmp$importance %>% max    
+# plos for variable importance groupings 
 plos <- tmp$importance %>% 
   as.data.frame %>%
   rownames_to_column('var') %>% 
@@ -290,7 +322,7 @@ plos <- tmp$importance %>%
       
       toplo <- data %>% 
         arrange(-importance) %>% 
-        .[1:5, ] %>% 
+        .[1:10, ] %>% 
         mutate(var = factor(var, levels = var))
       
       p <- ggplot(toplo, aes(x = var, y = importance)) + 
@@ -299,11 +331,12 @@ plos <- tmp$importance %>%
         theme_bw() + 
         theme(
           axis.title.x = element_blank(), 
-          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
+          # axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
           axis.title.y = element_blank()
         ) + 
         ggtitle(grp) + 
-        scale_y_continuous(limits = c(0, 0.18))
+        scale_y_continuous(limits = c(0, 0.17), labels = scales::percent) + 
+        coord_flip()
       
       
       return(p)
@@ -311,18 +344,9 @@ plos <- tmp$importance %>%
     })
   )
 
-p1 <- plos$implo[[1]]
-p2 <- plos$implo[[2]]
-p3 <- plos$implo[[3]]
-p4 <- plos$implo[[4]]
-
-grid.arrange(p1, p2, p3, p4, left = grid::textGrob('Importance', rot = 90))
-```
-
-Random forests were also used to identify important variables explaining amphipod and embryonic survivability.  As before, high importance suggests a variable had a strong influence on survivability where importance could be interpreted as a strong negative or positive effect.  The orientation of vectors in the RDA plots show that survivability is generally opposed to the sediment toxicity measures, so high importance in the plots below indicates that a lack of the important variables explained an increase in survivability.  
-```{r, fig.height = 3.5, fig.width = 7, eval = T}
-plos <- dat_frm %>% 
-  gather('var', 'val', amph_surv, embr_surv) %>% 
+# variable importance for toxicity 
+plos2 <- dat_frm_mets %>% 
+  gather('var', 'val', `Amph. surv.`, `Embr. surv.`) %>% 
   group_by(var) %>% 
   nest %>% 
   mutate(
@@ -339,7 +363,7 @@ plos <- dat_frm %>%
         dplyr::select(-IncNodePurity) %>% 
         rename(importance = `%IncMSE`) %>% 
         arrange(-importance) %>% 
-        .[1:5, ] %>% 
+        .[1:10, ] %>% 
         mutate(var = factor(var, levels = var))
       
       p <- ggplot(toplo, aes(x = var, y = importance)) + 
@@ -348,11 +372,12 @@ plos <- dat_frm %>%
         theme_bw() + 
         theme(
           axis.title.x = element_blank(), 
-          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
+          # axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1), 
           axis.title.y = element_blank()
         ) + 
         ggtitle(var)  + 
-        scale_y_continuous(limits = c(0, 0.4))
+        scale_y_continuous(limits = c(0, 0.41), labels = scales::percent) + 
+        coord_flip()
     
       return(p)
       
@@ -361,44 +386,27 @@ plos <- dat_frm %>%
 
 p1 <- plos$implo[[1]]
 p2 <- plos$implo[[2]]
+p3 <- plos$implo[[3]]
+p4 <- plos$implo[[4]]
+p5 <- plos2$implo[[1]]
+p6 <- plos2$implo[[2]]
 
-grid.arrange(p1, p2, left = grid::textGrob('Importance', rot = 90), ncol = 2)
+jpeg(here('figs', 'grpimp.jpg'), height = 7.5, width = 7.5, units = 'in', res = 500, family = 'serif')
+grid.arrange(
+  arrangeGrob(p1, p2, p3, p4, ncol = 4, top = '(a) Group variable importance'),
+  arrangeGrob(p5, p6, ncol = 2, top = '(b) Toxicity variable importance'),
+  left = grid::textGrob('Importance (% increase MSE)', rot = 90), 
+  ncol = 1, heights = c(1, 1)
+  )
+dev.off()
+```
+```{r grpimp, fig.cap = "Variable importance estimates from random forest models describing (a) group clusters pr (b) differences among sites for toxicity test results. Importance estimates are based on the increase in mean square error (MSE) for excluding a specific variable from the random forest model.", out.width = "60%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'grpimp.jpg'))
 ```
 
-Finally, this map shows the site locations that are color-coded by the clusters.  It can be used to evaluate spatial differences in the groupings.  
-```{r, eval = T}
-prstr <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+## Map
 
-toplo <- dat_frm %>% 
-  rownames_to_column('station') %>% 
-  left_join(locs, by = 'station') %>% 
-  mutate(Groups = grps) %>% 
-  filter(!is.na(lon)) %>% 
-  st_as_sf(coords = c('lon', 'lat'), crs = prstr)
-
-mapview(toplo, zcol = 'Groups', col.regions = cols, layer.name = 'Groups')
+```{r, fig.cap = "Map showing site locations color-coded by clusters. A: Ventura-Oxnard, B: Marina Del Rey, C: Port of Los Angeles (San Pedro), D: Costa Mesa, E: Dana Point, F: Oceanside, G: Carlsbad-Encinitas-Solana Beach, H: San Diego Bay.", out.width = "60%", fig.align = 'center'}
+knitr::include_graphics(here('figs', 'sitemap.jpg'))
 ```
 
-Conclusions: 
-
-* The toxicity measurements show a clear gradient from high to low across the sites.
-* The sites vary in which toxicity measurements are highest.  
-* The four groupings identified with kmeans clustering can be described as follows.  The yellow and purple groups are both high in toxicity but differ in which variables are dominant.
-     * green (Group 3): low for all toxicity measurements, 
-     * blue (Group 2): intermediate or not explained by any of the variables
-     * yellow (Group 4): high in toxicity
-     * purple (Group 1): high in toxicity
-* Amphipod and embryonic survivability were not strongly associated with any particular group, although some associations were observed. In particular:
-     * Embryonic survivability was somewhat lower in the yellow group
-     * Amphipod survivability was somewhat higher in the green group, somewhat lower in the purple group
-* Spatial patterns were clear among the groupings:
-     * The yellow group was most common in San Diego Bay
-     * The purple group was most common in the port of LA
-* Important variables were identified for each group:
-     * purple (Group 1): explained by high values in Ni, Ba, Sb, among others
-     * yellow (Group 4): explained by high values in Cr, Hg, Sn, among others
-     * green (Group 3): explained by low values of As, Fe, among others
-     * blue (Group 2): not strongly explained by any variables
-* Important variables were identified for survivability:
-     * Amphipod survivability explained by low values of Be, Co, among others
-     * Embryonic survivability explained by low values of Hg, Sn, among others
