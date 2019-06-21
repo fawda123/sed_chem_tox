@@ -109,10 +109,12 @@ dend <- dat_frm %>%
 # grouping vector
 ngrps <- 4
 grps <- cutree(dend, k = ngrps)
+# adonis(dat_frm ~ grps, method = 'eu')
 
 # color vector for groups
 cols <- mapviewGetOption("vector.palette")(ngrps)
 cols[4] <- 'orange'
+colsd <- cols[c(1, 3, 4, 2)]
 
 p1 <- dend %>% 
   as.dendrogram %>% 
@@ -123,7 +125,7 @@ p1 <- dend %>%
 jpeg(here('figs', 'siteclsts.jpg'), height = 5.5, width = 7, units = 'in', res = 500, family = 'serif')
 par(mar = c(2.5, 4.5, 0.25, 0))
 plot(p1, ylab = 'Dissimilarity')
-legend('topright', legend = c('1', '2', '3', '4'), fill = cols, title = 'Groups', bty = 'n')
+legend('topright', legend = c('1', '2', '3', '4'), fill = colsd, title = 'Groups', bty = 'n')
 title(xlab = 'Monitoring stations (153)', line = 0)
 dev.off()
 ```
@@ -134,7 +136,7 @@ knitr::include_graphics(here('figs', 'siteclsts.jpg'))
 ## Pairs plot, nutrients
 
 ```{r, results = 'hide'}
-cols <- cols[1:4]
+cols <- cols[c(1, 3, 4, 2)]
 
 toplo <- dat_frm %>% 
   mutate(Groups = as.character(grps))
@@ -158,7 +160,6 @@ knitr::include_graphics(here('figs', 'prplts.jpg'))
 ## PCA nutrients
 
 ```{r, results = 'hide'}
-cols <- cols[1:4]
 
 ppp <- PCA(dat_frm, scale.unit = F, graph = F)
 
@@ -181,7 +182,7 @@ wrap_elements(pleg) + {p1 + p2 + p3 + plot_layout(ncol = 3)} +
     plot_layout(ncol = 1, heights = c(0.2, 1))
 dev.off()
 ```
-```{r pcanuts, fig.cap = "Site groupings from the k-means clustering and variance among the measured variables using principal components analysis. Vectors include % total nitrogen, % total organic content, % fines, amphipod survivability, and embryonic survivability. The first three PCA axes are shown, with each plot showing a different combination of axes.", out.width = "45%", fig.align = 'center'}
+```{r pcanuts, fig.cap = "Site groupings from the k-means clustering and variance among the measured variables using principal components analysis. Vectors include % total nitrogen, % total organic content, % fines, amphipod survivability, and embryonic survivability. The first three PCA axes are shown, with each plot showing a different combination of axes.", out.width = "100%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'pcanuts.jpg'))
 ```
 
@@ -195,6 +196,7 @@ ngrps <- 4
 # metals cluster colors
 cols <- mapviewGetOption("vector.palette")(ngrps)
 cols[4] <- 'orange'
+colsd <- cols[c(1, 3, 4, 2)]
 
 # cluster with euclidean dissim, ward grouping
 dend <- dat_frm_mets %>%  
@@ -204,27 +206,32 @@ dend <- dat_frm_mets %>%
 # grouping vector
 grps <- cutree(dend, k = ngrps)
 
+# adonis(dat_frm_mets ~ grps, method = 'eu')
+
 p1 <- dend %>% 
   as.dendrogram %>% 
   set("labels_cex", NA) %>%
-  color_branches(k = ngrps, col = cols) #%>% 
+  color_branches(k = ngrps, col = cols[c(1, 3, 2, 4)]) #%>% 
   # color_labels(k = ngrps, col = colsd)
 
 jpeg(here('figs', 'siteclstsmet.jpg'), height = 5.5, width = 7, units = 'in', res = 500, family = 'serif')
 par(mar = c(2.5, 4.5, 0.25, 0))
 plot(p1, ylab = 'Dissimilarity')
-legend('topright', legend = c('1', '2', '3', '4'), fill = cols, title = 'Groups', bty = 'n')
+legend('topright', legend = c('1', '2', '3', '4'), fill = colsd, title = 'Groups', bty = 'n')
 title(xlab = 'Monitoring stations (153)', line = 0)
 dev.off()
 ```
 
-```{r siteclstsmet, fig.cap = "Dendrogram showing site clusters based on a dissimilarity matrix of Euclidean distances for the measured variables. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 2, 107; group 3, 20; group 4, 14.", out.width = "50%", fig.align = 'center'}
+```{r siteclstsmet, fig.cap = "Dendrogram showing site clusters based on a dissimilarity matrix of Euclidean distances for the measured variables. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 2, 107; group 3, 20; group 4, 14.", out.width = "60%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'siteclstsmet.jpg'))
 ```
 
 ## Metals group summaries
 
 ```{r, results = 'hide'}
+
+cols <- cols[c(1, 3, 4, 2)]
+
 colgrp <- data.frame(
   grps = c(1:ngrps), 
   cols = cols, 
@@ -285,7 +292,7 @@ wrap_elements(pleg) + {p1 + p2 + p3 + plot_layout(ncol = 3)} +
     plot_layout(ncol = 1, heights = c(0.2, 1))
 dev.off()
 ```
-```{r pcamets, fig.cap = "Site groupings from the k-means clustering and variance among the measured variables using principal components analysis. Vectors include amphipod survivability, embryonic survivability, and 26 metal constituents. The first three PCA axes are shown, with each plot showing a different combination of axes.", out.width = "45%", fig.align = 'center'}
+```{r pcamets, fig.cap = "Site groupings from the k-means clustering and variance among the measured variables using principal components analysis. Vectors include amphipod survivability, embryonic survivability, and 26 metal constituents. The first three PCA axes are shown, with each plot showing a different combination of axes.", out.width = "100%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'pcamets.jpg'))
 ```
 
@@ -335,7 +342,7 @@ plos <- tmp$importance %>%
           axis.title.y = element_blank()
         ) + 
         ggtitle(grp) + 
-        scale_y_continuous(limits = c(0, 0.17), labels = scales::percent) + 
+        scale_y_continuous(limits = c(0, 0.26), labels = scales::percent) + 
         coord_flip()
       
       
@@ -391,7 +398,7 @@ p4 <- plos$implo[[4]]
 p5 <- plos2$implo[[1]]
 p6 <- plos2$implo[[2]]
 
-jpeg(here('figs', 'grpimp.jpg'), height = 7.5, width = 7.5, units = 'in', res = 500, family = 'serif')
+jpeg(here('figs', 'grpimp.jpg'), height = 7.5, width = 8.5, units = 'in', res = 500, family = 'serif')
 grid.arrange(
   arrangeGrob(p1, p2, p3, p4, ncol = 4, top = '(a) Group variable importance'),
   arrangeGrob(p5, p6, ncol = 2, top = '(b) Toxicity variable importance'),
@@ -400,11 +407,29 @@ grid.arrange(
   )
 dev.off()
 ```
-```{r grpimp, fig.cap = "Variable importance estimates from random forest models describing (a) group clusters pr (b) differences among sites for toxicity test results. Importance estimates are based on the increase in mean square error (MSE) for excluding a specific variable from the random forest model.", out.width = "60%", fig.align = 'center'}
+```{r grpimp, fig.cap = "Variable importance estimates from random forest models describing (a) group clusters pr (b) differences among sites for toxicity test results. Importance estimates are based on the increase in mean square error (MSE) for excluding a specific variable from the random forest model.", out.width = "70%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'grpimp.jpg'))
 ```
 
 ## Map
+
+```{r, results = 'hide', eval = F}
+locs <- dat %>% 
+  select(station, lon, lat) %>% 
+  mutate(station = as.character(station))
+prstr <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+
+toplo <- dat_frm_mets %>% 
+  rownames_to_column('station') %>% 
+  left_join(locs, by = 'station') %>% 
+  mutate(Groups = grps) %>% 
+  filter(!is.na(lon)) %>% 
+  st_as_sf(coords = c('lon', 'lat'), crs = prstr)
+
+mapview(toplo, zcol = 'Groups', col.regions = cols, layer.name = 'Groups')
+
+st_write(toplo, here('data', 'sitegrps.shp'), delete_layer = T)
+```
 
 ```{r, fig.cap = "Map showing site locations color-coded by clusters. A: Ventura-Oxnard, B: Marina Del Rey, C: Port of Los Angeles (San Pedro), D: Costa Mesa, E: Dana Point, F: Oceanside, G: Carlsbad-Encinitas-Solana Beach, H: San Diego Bay.", out.width = "60%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'sitemap.jpg'))
