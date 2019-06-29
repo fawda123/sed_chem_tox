@@ -417,7 +417,7 @@ grid.arrange(
   )
 dev.off()
 ```
-```{r grpimp, fig.cap = "Variable importance estimates from random forest models describing (a) group clusters pr (b) differences among sites for toxicity test results. Importance estimates are based on the increase in mean square error (MSE) for excluding a specific variable from the random forest model.", out.width = "70%", fig.align = 'center'}
+```{r grpimp, fig.cap = "Variable importance estimates from random forest models describing (a) membership in group clusters and (b) differences among sites for toxicity test results. Importance estimates are based on the increase in mean square error (MSE) for excluding a specific variable from the random forest model.", out.width = "70%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'grpimp.jpg'))
 ```
 
