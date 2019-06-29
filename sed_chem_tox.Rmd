@@ -109,7 +109,7 @@ dend <- dat_frm %>%
 # grouping vector
 ngrps <- 4
 grps <- cutree(dend, k = ngrps)
-# adonis(dat_frm ~ grps, method = 'eu')
+# adonis(dat_frm ~ grps, method = 'eu', permutations = 1000)
 
 # color vector for groups
 cols <- mapviewGetOption("vector.palette")(ngrps)
@@ -129,7 +129,7 @@ legend('topright', legend = c('1', '2', '3', '4'), fill = colsd, title = 'Groups
 title(xlab = 'Monitoring stations (153)', line = 0)
 dev.off()
 ```
-```{r clstmap, fig.cap = "Dendrogram showing site clusters based on a dissimilarity matrix of Euclidean distances for the measured variables. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 2, 107; group 3, 20; group 4, 14.", out.width = "60%", fig.align = 'center'}
+```{r clstmap, fig.cap = "Dendrogram showing site clusters based on a dissimilarity matrix of Euclidean distances for the nutrient constituents and toxicity results. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 2, 107; group 3, 20; group 4, 14.", out.width = "60%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'siteclsts.jpg'))
 ```
 
@@ -187,7 +187,7 @@ wrap_elements(pleg) + {p1 + p2 + p3 + plot_layout(ncol = 3)} +
     plot_layout(ncol = 1, heights = c(0.2, 1))
 dev.off()
 ```
-```{r pcanuts, fig.cap = "Site groupings from the k-means clustering and variance among the measured variables using principal components analysis. Vectors include % total nitrogen, % total organic content, % fines, amphipod survivability, and embryonic survivability. The first three PCA axes are shown, with each plot showing a different combination of axes.", out.width = "100%", fig.align = 'center'}
+```{r pcanuts, fig.cap = "Site groupings from clustering analysis and variance among the measured variables using principal components analysis. Vectors include % total nitrogen, % total organic content, % fines, amphipod survivability, and embryonic survivability. The first three PCA axes are shown, with each plot showing a different combination of axes: (a) axes 1 and 2, (b) axes 2 and 3, (c) axes 1 and 3.", out.width = "100%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'pcanuts.jpg'))
 ```
 
@@ -211,8 +211,7 @@ dend <- dat_frm_mets %>%
 
 # grouping vector
 grps <- cutree(dend, k = ngrps)
-
-# adonis(dat_frm_mets ~ grps, method = 'eu')
+# adonis(dat_frm_mets ~ grps, method = 'eu', permutations = 1000)
 
 p1 <- dend %>% 
   as.dendrogram %>% 
@@ -227,7 +226,7 @@ legend('topright', legend = c('1', '2', '3', '4'), fill = colsd, title = 'Groups
 title(xlab = 'Monitoring stations (153)', line = 0)
 dev.off()
 ```
-```{r siteclstsmet, fig.cap = "Dendrogram showing site clusters based on a dissimilarity matrix of Euclidean distances for the measured variables. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 2, 107; group 3, 20; group 4, 14.", out.width = "60%", fig.align = 'center'}
+```{r siteclstsmet, fig.cap = "Dendrogram showing site clusters based on a dissimilarity matrix of Euclidean distances for the metal constituents and toxicity results. The tree was cut to identify site groupings within which relative values of the measured variables were similar. Sites closer to each other at the terminal branches are more similar. Sites distribution: group 1, 12 sites; group 2, 107; group 3, 20; group 4, 14.", out.width = "60%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'siteclstsmet.jpg'))
 ```
 
@@ -302,7 +301,7 @@ wrap_elements(pleg) + {p1 + p2 + p3 + plot_layout(ncol = 3)} +
     plot_layout(ncol = 1, heights = c(0.2, 1))
 dev.off()
 ```
-```{r pcamets, fig.cap = "Site groupings from the k-means clustering and variance among the measured variables using principal components analysis. Vectors include amphipod survivability, embryonic survivability, and 26 metal constituents. The first three PCA axes are shown, with each plot showing a different combination of axes.", out.width = "100%", fig.align = 'center'}
+```{r pcamets, fig.cap = "Site groupings from clustering analysis and variance among the measured variables using principal components analysis. Vectors include amphipod survivability, embryonic survivability, and 23 metal constituents. The first three PCA axes are shown, with each plot showing a different combination of axes: (a) axes 1 and 2, (b) axes 2 and 3, (c) axes 1 and 3.", out.width = "100%", fig.align = 'center'}
 knitr::include_graphics(here('figs', 'pcamets.jpg'))
 ```
 
