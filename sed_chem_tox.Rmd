@@ -4,7 +4,7 @@ output:
     code_folding: hide
 ---
 
-```{r message = F, warning = F, results = 'hide', echo = F}
+```{r message = F, warning = F, results = 'hide', echo = T}
 library(knitr)
 opts_chunk$set(warning = FALSE, message = FALSE, fig.path = 'figs/', dev.args = list(bg = 'transparent'))
 
