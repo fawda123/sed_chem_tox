@@ -1,0 +1,79 @@
+---
+output: 
+  bookdown::html_document2
+---
+
+```{r message = F, warning = F, results = 'hide', echo = F}
+library(knitr)
+opts_chunk$set(warning = FALSE, message = FALSE, fig.path = 'figs/', dev.args = list(bg = 'transparent'))
+```
+
+# Import libraries, setup data
+
+```{r}
+library(tidyverse)
+library(NbClust)
+library(here)
+library(vegan)
+
+load(file = here('data', 'dat.RData'))
+
+# rename toxicity columns
+dat <- dat %>% 
+  rename(
+    `Embr. surv.` = embr_surv, 
+    `Amph. surv.` = amph_surv, 
+    `% TN` = tn, 
+    `% TOC` = toc, 
+    `% Fines` = fine
+  )
+
+# nutrients formatted data
+# outlier removed, some variables transformed, values standardized
+dat_frm <- dat %>% 
+  select(station, depth, `% TOC`, `% TN`, `% Fines`, `Amph. surv.`, `Embr. surv.`) %>% 
+  select(-depth) %>% 
+  filter(`Amph. surv.` > 30) %>% 
+  mutate(
+    `% TN` = log10(`% TN`),  
+    `% TOC` = log10(`% TOC`),
+    `% Fines` = ifelse(is.na(`% Fines`), mean(`% Fines`, na.rm = TRUE), `% Fines`), 
+    `Embr. surv.` = ifelse(is.na(`Embr. surv.`), mean(`Embr. surv.`, na.rm = TRUE), `Embr. surv.`)
+  ) %>% 
+  column_to_rownames('station') %>% 
+  decostand(method = 'standardize')
+
+# metals formatted data
+# outliers removed, values standardized
+dat_frm_mets <- dat %>% 
+  select(-`% TOC`, -`% Fines`, -`% TN`, -depth, -lat, -lon) %>% 
+  filter(`Amph. surv.` > 30) %>%
+  filter(Hg < 5) %>% 
+  filter(Cr < 100) %>% 
+  filter(Ba < 600) %>% 
+  filter(Sb < 1.3) %>% 
+  filter(Ag < 2) %>% 
+  mutate(
+    `Embr. surv.` = ifelse(is.na(`Embr. surv.`), median(`Embr. surv.`, na.rm = TRUE), `Embr. surv.`), 
+    Al = ifelse(is.na(Al), median(Al, na.rm = TRUE), Al),
+    Sb = ifelse(is.na(Sb), median(Sb, na.rm = TRUE), Sb),
+    As = ifelse(is.na(As), median(As, na.rm = TRUE), As)
+  ) %>%
+  column_to_rownames('station') %>%
+  decostand(method = 'standardize')
+```
+
+# Optimal clustering for sediment nutrient data
+
+```{r}
+NbClust(dat_frm, method = 'ward.D2', distance = 'euclidean')
+```
+
+# Optimal clustering for sediment metals data
+
+```{r}
+NbClust(dat_frm_mets, method = 'ward.D2', distance = 'euclidean')
+```
+
+
+
