@@ -4,4 +4,4 @@
 
 Materials for analysis of sediment toxicity data for Bight 2008
 
-Analysis [here](https://fawda123.github.io/sed_chem_tox/sed_chem_tox.html)
+Manuscript analysis and figures [here](https://fawda123.github.io/sed_chem_tox/sed_chem_tox.html), cluster evaluation analysis [here](https://fawda123.github.io/sed_chem_tox/clust_eval.html)
